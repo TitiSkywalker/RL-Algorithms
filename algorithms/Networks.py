@@ -41,9 +41,9 @@ class QNet(nn.Module):
         self.l2=nn.Linear(hidden_size, hidden_size)
         self.l3=nn.Linear(hidden_size, action_size)
 
-        torch.nn.init.kaiming_uniform_(self.l1.weight)
-        torch.nn.init.kaiming_uniform_(self.l2.weight)
-        torch.nn.init.kaiming_uniform_(self.l3.weight)
+        nn.init.kaiming_uniform_(self.l1.weight)
+        nn.init.kaiming_uniform_(self.l2.weight)
+        nn.init.kaiming_uniform_(self.l3.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x=F.leaky_relu(self.l1(x))
@@ -59,9 +59,9 @@ class PolicyNet(nn.Module):
         self.l2=nn.Linear(hidden_size, hidden_size)
         self.l3=nn.Linear(hidden_size, action_size)
 
-        torch.nn.init.kaiming_uniform_(self.l1.weight)
-        torch.nn.init.kaiming_uniform_(self.l2.weight)
-        torch.nn.init.kaiming_uniform_(self.l3.weight)
+        nn.init.kaiming_uniform_(self.l1.weight)
+        nn.init.kaiming_uniform_(self.l2.weight)
+        nn.init.kaiming_uniform_(self.l3.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if len(x.shape) == 1:
@@ -80,9 +80,9 @@ class ValueNet(nn.Module):
         self.l2=nn.Linear(hidden_size, hidden_size)
         self.l3=nn.Linear(hidden_size, 1)
 
-        torch.nn.init.kaiming_uniform_(self.l1.weight)
-        torch.nn.init.kaiming_uniform_(self.l2.weight)
-        torch.nn.init.kaiming_uniform_(self.l3.weight)
+        nn.init.kaiming_uniform_(self.l1.weight)
+        nn.init.kaiming_uniform_(self.l2.weight)
+        nn.init.kaiming_uniform_(self.l3.weight)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x=F.leaky_relu(self.l1(x))
@@ -102,12 +102,12 @@ class PPONet(nn.Module):
         self.policy_pre=nn.Linear(hidden_size, hidden_size)
         self.policy_out=nn.Linear(hidden_size, action_size)
 
-        torch.nn.init.kaiming_uniform_(self.l1.weight)
-        torch.nn.init.kaiming_uniform_(self.l2.weight)
-        torch.nn.init.kaiming_uniform_(self.value_pre.weight)
-        torch.nn.init.kaiming_uniform_(self.value_out.weight)
-        torch.nn.init.kaiming_uniform_(self.policy_pre.weight)
-        torch.nn.init.kaiming_uniform_(self.policy_out.weight)
+        nn.init.kaiming_uniform_(self.l1.weight)
+        nn.init.kaiming_uniform_(self.l2.weight)
+        nn.init.kaiming_uniform_(self.value_pre.weight)
+        nn.init.kaiming_uniform_(self.value_out.weight)
+        nn.init.kaiming_uniform_(self.policy_pre.weight)
+        nn.init.kaiming_uniform_(self.policy_out.weight)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x=F.leaky_relu(self.l1(x))

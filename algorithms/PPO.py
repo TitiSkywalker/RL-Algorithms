@@ -19,9 +19,12 @@ We have done experiments both in OpenAI Gymnasium and Arcade Learning Environmen
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
-from gymnasium.utils.save_video import save_video
 from torch.distributions.categorical import Categorical
+from gymnasium.utils.save_video import save_video
+from moviepy.editor import ImageSequenceClip
+from PIL import Image
 from Utils import EnvBatch, EnvSingle
 from Networks import PPONet, PPONet2D_conv
 
@@ -310,9 +313,87 @@ class PPOAgent():
         print(f"Total reward = {total_reward}")
         if generate_video:
             frames, fps = env.render()
-            save_video(frames=frames, video_folder="../results", fps=fps)
+            clip = ImageSequenceClip(sequence=frames, fps=fps*1.5)
+            clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
         return total_reward
+
+    def visualizeGradient(self, max_step=100):
+        print(f"Visualize gradient map in {max_step} steps")
+        env=EnvSingle(self.env_name, self.vision, self.frames, self.skip_frames, self.is_ale)
+        state = torch.stack([env.reset()]).clone().detach().requires_grad_(True).to(device)
+        state.retain_grad()
+        terminated=False
+        truncated=False
+
+        policy_frames = []
+        value_frames = []
+
+        for step in range(max_step):
+            action, log_prob, entropy, value = self.action_value(state)
+
+            # 1. plot gradients produced by value network
+            value.backward(retain_graph=True)
+            gradient = state.grad[0][3].data.cpu()
+
+            # normalize gradient for visualization
+            gradient = gradient.abs().squeeze().numpy() 
+            gradient = (gradient - gradient.min()) / (gradient.max() - gradient.min())
+
+            # create jet colormap of gradients
+            gradient_colormap = cm.jet(gradient)
+            # convert from RGBA into RGB
+            gradient_colormap = (gradient_colormap[:, :, :3]*255)
+            # overlay them together
+            image = state[0][3].squeeze().detach().cpu().numpy()
+            image = np.stack((image,)*3, axis=-1)
+
+            overlay_image = np.clip(0.5*gradient_colormap+0.6*image, 0, 255).astype(np.uint8)
+            value_frames.append(overlay_image)
+
+            state.grad.zero_()
+
+            # 2. plot gradients produced by policy network
+            log_prob.backward(retain_graph=False)
+            gradient = state.grad[0][3].data.cpu()
+
+            # normalize gradient for visualization
+            gradient = gradient.abs().squeeze().numpy() 
+            gradient = (gradient - gradient.min()) / (gradient.max() - gradient.min())
+
+            # create jet colormap of gradients
+            gradient_colormap = cm.jet(gradient)
+            # convert from RGBA into RGB
+            gradient_colormap = (gradient_colormap[:, :, :3]*255)
+            # overlay them together
+            image = state[0][3].squeeze().detach().cpu().numpy()
+            image = np.stack((image,)*3, axis=-1)
+
+            overlay_image = np.clip(0.5*gradient_colormap+0.6*image, 0, 255).astype(np.uint8)
+            policy_frames.append(overlay_image)
+
+            next_state, reward, terminated, truncated, info = env.step(action)
+            next_state=torch.stack([next_state]).clone().detach().requires_grad_(True).to(device)
+
+            state=next_state.clone().detach().requires_grad_(True).to(device)
+
+            if terminated or truncated:
+                break
+        
+        frames, fps=env.render()
+
+        all_frames = []
+        for i in range(len(policy_frames)):
+            frame1 = np.array(Image.fromarray(policy_frames[i]).resize((210, 210)))
+            frame2 = np.array(Image.fromarray(value_frames[i]).resize((210, 210)))
+
+            for j in range(self.skip_frames+1):
+                frame3 = frames[i*(self.skip_frames+1)+j]
+                new_frame = np.hstack([frame3, frame1, frame2])
+                all_frames.append(new_frame)
+
+        clip = ImageSequenceClip(sequence=all_frames, fps=fps*1.5)
+        clip.write_videofile("../results/gradient.mp4", codec="libx264")
 
 hyperparams_1 = {
     "env_name": "CartPole-v1",
@@ -385,3 +466,4 @@ if __name__ == "__main__":
     # agent.save()
     agent.reload()
     agent.evaluate(True)
+    agent.visualizeGradient(200)

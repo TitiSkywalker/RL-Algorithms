@@ -1,5 +1,7 @@
 """
-This file implements wrappers for environments
+This file implements wrappers for environments. 
+- EnvSingle wraps a single Gymnasium or ALE environment.
+- EnvBatch is designed for PPO, it manages many independent environments.
 """
 
 import torch
@@ -25,13 +27,13 @@ class EnvSingle:
         self.steps      = 0
         self.max_steps  = 1000                  # maximum rollout steps
         self.nops       = 0
-        self.max_nops   = 128                    # terminate after many nops
+        self.max_nops   = 128                   # terminate after too many nops
         self.skip_frames = skip_frames          # skip some frames
 
         # image preprocessing
         self.transform = T.Compose([
-            T.Grayscale(num_output_channels=1),     # Convert to grayscale (1 channel)
-            T.Resize((84, 84)),                     # Rescale to 84x84
+            T.Grayscale(num_output_channels=1),     # convert to grayscale (1 channel)
+            T.Resize((84, 84)),                     # rescale to 84x84
         ])
 
         if is_ale:
