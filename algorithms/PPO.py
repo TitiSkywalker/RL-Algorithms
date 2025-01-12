@@ -288,11 +288,11 @@ class PPOAgent():
 
     def evaluate(self, generate_video=False):
         # do a single rollout in one environment
-        env=EnvSingle(self.env_name, self.vision, self.frames, self.skip_frames, self.is_ale)
-        state=torch.Tensor(torch.stack([env.reset()])).to(device)
-        terminated=False
-        truncated=False
-        total_reward=0
+        env = EnvSingle(self.env_name, self.vision, self.frames, self.skip_frames, self.is_ale)
+        state = torch.Tensor(torch.stack([env.reset()])).to(device)
+        terminated = False
+        truncated = False
+        total_reward = 0
 
         while not terminated and not truncated:
             with torch.no_grad():
@@ -347,6 +347,7 @@ hyperparams_1 = {
 }
 
 # play Atari Breakout
+# this environment is better than Breakout-v5 because is simpler
 hyperparams_2={
     "env_name": "BreakoutNoFrameskip-v4",
     "vision": True,
@@ -379,8 +380,8 @@ hyperparams_2={
 }
 
 if __name__ == "__main__":
-    agent=PPOAgent(hyperparams_1)
-    agent.train(500)
-    agent.save()
+    agent=PPOAgent(hyperparams_2)
+    # agent.train(500)
+    # agent.save()
     agent.reload()
     agent.evaluate(True)

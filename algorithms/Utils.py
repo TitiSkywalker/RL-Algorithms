@@ -102,7 +102,7 @@ class EnvSingle:
                     terminated = True
                 else:
                     reward -= 10
-                    self.lives= extra_info["lives"]
+                    self.lives = info["lives"]
 
             # skip frames and cumulate rewards
             for _ in range(self.skip_frames):
@@ -134,16 +134,9 @@ class EnvSingle:
             self.frame_stack.pop(0)
             self.frame_stack.append(next_state)
 
-            if terminated or truncated:
-                # default behavior after gameover: reset
-                self.reset()
-
-            # concatenate into channel dimension
+            # concatenate in channel dimension
             return torch.cat(self.frame_stack, dim=0), reward, terminated, truncated, info
         else:
-            if terminated or truncated:
-                # default behavior after gameover: reset
-                self.reset()
             return next_state, reward, terminated, truncated, info
     
     def render(self):
@@ -248,7 +241,7 @@ class EnvBatch:
                     terminated = True
                 else:
                     reward -= 10
-                    self.lives[index] = extra_info["lives"]
+                    self.lives[index] = info["lives"]
 
             # skip frames and cumulate rewards
             for _ in range(self.skip_frames):
