@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from torch.distributions.categorical import Categorical
-from gymnasium.utils.save_video import save_video
+from moviepy.editor import ImageSequenceClip
 from Utils import EnvSingle
 from Networks import PolicyNet
 
@@ -145,7 +145,8 @@ class PGAgent:
         print(f"Total reward = {total_reward}")
 
         frames, fps = env.render()
-        save_video(frames=frames, video_folder="../results", fps=fps)
+        clip = ImageSequenceClip(sequence=frames, fps=fps)
+        clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
 hyperparams = {
     "env_name": "CartPole-v1",

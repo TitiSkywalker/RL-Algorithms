@@ -14,7 +14,7 @@ import numpy as np
 import copy
 import matplotlib.pyplot as plt
 
-from gymnasium.utils.save_video import save_video
+from moviepy.editor import ImageSequenceClip
 from Utils import ReplayBuffer, EnvSingle
 from Networks import QNet
 
@@ -192,7 +192,8 @@ class DDQNAgent:
         print(f"Total reward = {total_reward}")
 
         frames, fps=env.render()
-        save_video(frames=frames, video_folder="../results", fps=fps)
+        clip = ImageSequenceClip(sequence=frames, fps=fps)
+        clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
 # the structure is the same with Q learning
 hyperparams = {

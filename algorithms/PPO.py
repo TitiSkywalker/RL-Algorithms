@@ -1,5 +1,5 @@
 """
-This file implements the proximal policy optimization algorithm, proposed in the legend paper "Proximal Policy Optimization Algorithms" by John Schulman, Philipp Moritz, Sergey Levine, Michael I. Jordan, and Pieter Abbeel. This is the most complicated algorithm in our project. The policy rollout is done in several independent environments. We can implemented easily using batched operations in pyTorch. 
+This file implements the proximal policy optimization algorithm, proposed in the legend paper "Proximal Policy Optimization Algorithms" by John Schulman, Philipp Moritz, Sergey Levine, Michael I. Jordan, and Pieter Abbeel. This is the most complicated algorithm in our project. The policy rollout is done in several independent environments. We can implemented easily using batched operations in PyTorch. 
 
 The surrogate objective is computed as:
 
@@ -22,7 +22,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 from torch.distributions.categorical import Categorical
-from gymnasium.utils.save_video import save_video
 from moviepy.editor import ImageSequenceClip
 from PIL import Image
 from Utils import EnvBatch, EnvSingle
@@ -313,13 +312,22 @@ class PPOAgent():
         print(f"Total reward = {total_reward}")
         if generate_video:
             frames, fps = env.render()
-            clip = ImageSequenceClip(sequence=frames, fps=fps*1.5)
+            if self.vision:
+                # video game is too slow
+                clip = ImageSequenceClip(sequence=frames, fps=fps*1.5)
+            else:
+                clip = ImageSequenceClip(sequence=frames, fps=fps)
             clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
         return total_reward
 
     def visualizeGradient(self, max_step=100):
         print(f"Visualize gradient map in {max_step} steps")
+
+        if not self.vision:
+            print("Only video games can be visualized")
+            return
+
         env=EnvSingle(self.env_name, self.vision, self.frames, self.skip_frames, self.is_ale)
         state = torch.stack([env.reset()]).clone().detach().requires_grad_(True).to(device)
         state.retain_grad()

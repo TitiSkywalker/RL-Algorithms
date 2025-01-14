@@ -14,7 +14,7 @@ import numpy as np
 import copy
 import matplotlib.pyplot as plt
 
-from gymnasium.utils.save_video import save_video
+from moviepy.editor import ImageSequenceClip
 from Utils import ReplayBuffer, EnvSingle
 from Networks import QNet
 
@@ -193,7 +193,8 @@ class DQNAgent:
         print(f"Total reward = {total_reward}")
 
         frames, fps=env.render()
-        save_video(frames=frames, video_folder="../results", fps=fps)
+        clip = ImageSequenceClip(sequence=frames, fps=fps)
+        clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
 hyperparams = {
     "env_name": "CartPole-v1",
@@ -208,7 +209,7 @@ hyperparams = {
     "end_epsilon": 0.1,
 
     "buffer_size": 10000,           # size of the replay buffer
-    "batch_size": 32,               # size of every minibatch
+    "batch_size": 32,               # size of each minibatch
 
     "sync_interval": 20,            # notice: the unit is episode
     "train_interval": 1,            # notice: the unit is time step
