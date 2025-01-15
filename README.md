@@ -132,6 +132,10 @@ An exciting thing to do is visualize that the agent is looking at. We implemente
 
 This is literally the "computer vision". On the left-hand side is gradient from policy, and on the right-hand side is gradient from value. We can see that policy and value network is actually looking at similar features. Maybe this is the benefit of using a shared neural network: policy and value are consistent with each other.
 
+![alt text](./display/PPOloss.png)
+
+One concern is that value and policy subnetwork may compete with each other. The above figure shows that value loss is much larger than polocy loss. However, we haven't encounter any problem under this setting.
+
 ## 3. Google Research Football
 
 ## 4. Acknowledgments
