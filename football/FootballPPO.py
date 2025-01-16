@@ -301,12 +301,12 @@ class FootballAgent():
         except:
             print(f"Cannot load model from ../models/football.pth")
 
-    def evaluate(self):
+    def evaluate(self, total_steps):
         env = FootballSingleEnv(4, 1, True)
 
         current_parameter, current_minimap = env.reset()
 
-        for step in tqdm(range(500)):
+        for step in tqdm(range(total_steps)):
             # batched action
             with torch.no_grad():
                 current_parameter = torch.stack([current_parameter])
@@ -355,7 +355,7 @@ hyperparams = {
 
 if __name__ == "__main__":
     agent = FootballAgent(hyperparams)
-    agent.train(1000)
-    agent.save()
+    # agent.train(500)
+    # agent.save()
     agent.reload()
-    agent.evaluate()
+    agent.evaluate(1000)

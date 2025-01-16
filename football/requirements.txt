@@ -1,0 +1,8 @@
+gfootball==2.10.2
+matplotlib==3.10.0
+numpy==2.2.1
+opencv_python==4.10.0.84
+scipy==1.15.1
+torch==2.4.1
+torchvision==0.19.1
+tqdm==4.67.1

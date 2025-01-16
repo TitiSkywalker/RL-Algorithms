@@ -11,6 +11,8 @@ import torchvision.transforms as T
 import matplotlib.pyplot as plt
 import gfootball.env as football_env
 import cv2
+import os 
+import sys
 
 from scipy.ndimage import gaussian_filter
 
@@ -76,11 +78,11 @@ class FootballSingleEnv:
 
         # update score board
         if info["score_reward"] == 1:
-            print(next_state["score"])
+            # print(next_state["score"])
             self.score_board = (self.score_board[0]+1, self.score_board[1])
             self.prev_ball = (0, 0, 0)
         elif info["score_reward"] == -1:
-            print(next_state["score"])
+            # print(next_state["score"])
             self.score_board = (self.score_board[0], self.score_board[1]+1)
             self.prev_ball = (0, 0, 0)
         else:
@@ -103,11 +105,11 @@ class FootballSingleEnv:
 
             # update score board
             if extra_info["score_reward"] == 1:
-                print(extra_state["score"])
+                # print(extra_state["score"])
                 self.score_board = (self.score_board[0]+1, self.score_board[1])
                 self.prev_ball = (0, 0, 0)
             elif extra_info["score_reward"] == -1:
-                print(extra_state["score"])
+                # print(extra_state["score"])
                 self.score_board = (self.score_board[0], self.score_board[1]+1)
                 self.prev_ball = (0, 0, 0)
             else:
@@ -150,10 +152,10 @@ class FootballSingleEnv:
         reward = potential2 - potential1
 
         if info["score_reward"] == 1:       # left team goal
-            print("left goal")
+            # print("left goal")
             reward += 100
         elif info["score_reward"] == -1:    # right team goal
-            print("right goal")
+            # print("right goal")
             reward -= 200
 
         if ball_owned_team == 0:
@@ -180,14 +182,14 @@ class FootballSingleEnv:
             grid[y, x] = 1
 
         smooth_grid = gaussian_filter(grid.astype(float), sigma=1)
-        # Increase brightness by scaling the grid values
-        brightness_factor = 7.0  # Increase for more brightness
+        # increase brightness by scaling the grid values
+        brightness_factor = 7.0  
         smooth_grid = smooth_grid * brightness_factor
 
-        # Clip values to ensure they remain in the range [0, 1]
+        # clip values to ensure they remain in the range [0, 1]
         smooth_grid = np.clip(smooth_grid, 0, 1)
 
-        # Display the minimap
+        # display the minimap
         # plt.imshow(smooth_grid, cmap='gray', origin='upper')
         # plt.title("Super Minimap with Larger Light Spots")
         # plt.axis('off')  # Hide axis for cleaner visualization
@@ -260,14 +262,27 @@ class FootballSingleEnv:
         self.env.close()
     
     def save_video(self):
-        print(f"Save video, {len(self.record_frames)} frames")
+        print("Save video as results/football.mp4")
         output_file = "../results/football.mp4"
         frame_rate = 20
 
-        video_writer = cv2.VideoWriter(output_file, -1, frame_rate, (1280, 720))
+        # make cv2 shut up
+        original_stdout_fd = sys.stdout.fileno()
+        original_stderr_fd = sys.stderr.fileno()
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, original_stdout_fd)  # Redirect stdout
+        os.dup2(devnull, original_stderr_fd)  # Redirect stderr
+        try:
+            video_writer = cv2.VideoWriter(output_file, -1, frame_rate, (1280, 720))
 
-        for img in self.record_frames:
-            video_writer.write(img)
+            for image in self.record_frames:
+                video_writer.write(image)
 
-        # Release the VideoWriter
-        video_writer.release()
+            video_writer.release()
+        finally:
+            # restore original stdout and stderr
+            os.dup2(original_stdout_fd, sys.stdout.fileno())
+            os.dup2(original_stderr_fd, sys.stderr.fileno())
+            os.close(devnull)
+        
+        print("Successfully saved video")

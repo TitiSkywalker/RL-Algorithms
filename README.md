@@ -3,6 +3,20 @@
 This repository implements some basic deep RL algorithms in PyTorch. They are developed and tested in **OpenAI Gymnasium**. PPO is further improved and tested in **Arcade Learning Environment** and **Google Research Football**. 
 
 ## 0. Table of Contents
+- [Environments](#1-Environments)
+- [Algorithms](#2-Algorithms)
+	- [Implementation](#21-Implementation)
+	- [Execution](#22-Execution)
+	- [Result](#23-Result)
+- [Atari](#3-Atari)
+	- [Implementation](#31-Implementation)
+	- [Visualization](#32-Visualization)
+- [Football](#4-Football)
+	- [Environment](#41-Environment)
+	- [Implementation](#42-Implementation)
+	- [Reward Augmentation](#43-Reward-Augmentation)
+- [License](#5-License)
+- [Acknowledgements](#6-Acknowledgements)
 
 ## 1. Environments
 Google Research Football stops its maintainance since 2022, and it is using some old-version packages. For example, the interface of **OpenAI Gym** has changes, and it is replaced by **OpenAI Gymnasium** now. So we are forced to rollback to some acient Python version, but this is not ideal. 
@@ -23,8 +37,8 @@ To address this problem, we are using **two conda environments**. For tasks othe
    └─<result of training and evaluation>
 ```
 
-## 1. Algorithms
-### 1.1 Implementation
+## 2. Algorithms
+### 2.1 Implementation
 All algorithms are developed independently in different files, but they all share similar interfaces. Each file can be executed individually.
 
 For value based methods, we have implemented:
@@ -38,7 +52,7 @@ For policy based methods, we have implemented the following. We don't need to wo
 - [Actor-critic](./algorithms/AC.py): It trades variance with bias.
 - [PPO](./algorithms/PPO.py): It is generally considered as policy based method. We use a special neural network which computes policy and value at the same time. In theory we can use this network for actor-critic as well.
 
-### 1.2 Execution 
+### 2.2 Execution 
 To run these algorithms, you first need to set the hyperparameters. For example, [DQN](./algorithms/DQN.py) has the following hyper parameter. It is locate at the bottom of each file.
 ```Python
 hyperparams = {
@@ -95,7 +109,7 @@ cd algorithms
 python <algorithm name>.py
 ```
 
-### 1.3 Result
+### 2.3 Result
 The figure below shows results of all algorithms in **CartPole-v1** (Episodic rewards are not averaged). There are several interesting things:
 
 - Compare DQN with DDQN. The first row shows Q-learning and double Q-learning. Double Q-learning is more "cautious" than Q-learning because it's not likely to overestimate values. We can see that double Q-learning converges slower, maybe optimism is better in simple settings.
@@ -107,8 +121,8 @@ Another interesting fact is that **parameter initialization** can boost the perf
 
 ![alt text](display/kaiming.png)
 
-## 2. Atari 2600
-### 2.1 Implementation
+## 3. Atari
+### 3.1 Implementation
 We have further deployed PPO in **Arcade Learning Environment**, specifically the classic Breakout game. The network is the traditional 3-layer CNN, followed by several MLP layers. We are using the **BreakoutNoFrameskip-v4** environment because it is stable, and we skip the frames manually. 
 
 To run the program, please set the hyperparameters in [PPO.py](./algorithms/PPO.py). Both a set of hyperparameters and a pre-trained model are provided.
@@ -125,7 +139,7 @@ We modified the rewards. We add penalty for losing a ball, and each break is tre
 
 ![alt text](./display/Breakout-bad.gif)
 
-### 2.2 Visualization
+### 3.2 Visualization
 An exciting thing to do is visualize that the agent is looking at. We implemented this by computing the gradient of the input image (which is transformed into a grayscale tensor of shape 84x84) with respect to policy and value. This is done by calling the "agent.visualizeGradient(...)" fucntion of PPO agent.
 
 ![alt text](./display/gradient.gif)
@@ -134,11 +148,61 @@ This is literally the "computer vision". On the left-hand side is gradient from 
 
 ![alt text](./display/PPOloss.png)
 
-One concern is that value and policy subnetwork may compete with each other. The above figure shows that value loss is much larger than polocy loss. However, we haven't encounter any problem under this setting.
+One concern is that value and policy subnetwork may compete with each other. The above figure indicates that value loss is much larger than polocy loss. However, we haven't encounter any problem under this setting, becuase policy network and value network still have their own structure.
 
-## 3. Google Research Football
+## 4. Football
+![alt text](./display/football.png)
 
-## 4. Acknowledgments
+### 4.1 Environment
+We are using **Google Research Football** to simulate football games. It is good and fast. You can find guide about installation in its [github repository](https://github.com/google-research/football). 
+
+Here is a list about the problems you might encounter while trying to configure the environment (at least we encountered them).
+- Your Python version should be **less than 3.10**.
+- You need to install **vcpkg** in Windows system. This is simple.
+- **pygame** is very likely to be too new in your computer.
+```
+pip install pygame==2.1.2
+```
+- **gfootball** uses the old **gym**, so we need to install gym==0.20.0 or previous versions. To do that, we need to re-install the old versions of **setuptools** and **pip** (can you believe this?).
+```
+pip install --upgrade pip setuptools==57.5.0
+python -m pip install pip==20.0.1
+pip install gym==0.20.0
+```
+- In Ubuntu you might encounter "version `GLIBCXX_3.4.30' not found". This is solved [here](https://github.com/google-research/football/issues/366).
+
+### 4.2 Implementation
+We use both visual and parameterized input for our neural network. The visual inputs are **super-minimap** reconstructed from the parameterized inputs. This is because CNN might have a different understanding from MLP.
+
+![alt text](./display/minimap.png)
+
+First, visual and parameterized inputs are processed separately. Then, the tensors are combined together and pass through shared network architectures. It then splits into two parts, computing value and policy separately. Below is an automatically generated graph using **torchviz**.
+
+![alt text](./display/structure.png)
+
+### 4.3 Reward Augmentation
+Simply using goals as reward signals is not enough, because the untrained agent will never have the chance to win a positive reward. Thus, we need to encourage the agent to at least kick the ball forward. This is done via **potential functions**. The reward is augmented as:
+
+$$r_t = \Phi(\omega_2) - \Phi(\omega_1)+\delta+\epsilon$$
+
+Where $\omega$ is the position of the ball. $\delta$ is R if the agent goals, -R if opponent goals, and 0 otherwise. $\epsilon$ s a small value if the agent is controlling the ball, and 0 otherwise. In general the potential function would tell the agent how good is the current situation. We have tried 3 potential functions.
+
+![alt text](./display/potential.png)
+
+The first one is no good because it is too smooth near the gate. 
+
+The second strategy will encourage the agent to defend and control the ball. 
+![alt text](./display/defend.gif)
+
+The third will encourage the agent to attack. This will lead to more scores compared to the second one, but it seems less professional.
+![alt text](./display/attack.gif)
+
+A problem is that the agent will actually overfit the manually designed potential function. It will gradually converge into a wierd policy which tries to maximize the potential. This can be solved by either increasing the neural network size, or reducing training episodes (stop before it realizes out trick). In the sense that it can understand the implicit mechanisms of the environment, RL is indeed intelligent.
+
+## 5. License
+Please check out [License.txt](License.txt).
+
+## 6. Acknowledgements
 *OpenAI Spinning Up* provides various materials for deep RL: https://spinningup.openai.com. There is a list of key papers in deep RL.
 
 *Hugging Face Deep RL Course* helped us implement PPO: https://huggingface.co/learn/deep-rl-course.
