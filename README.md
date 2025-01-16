@@ -1,6 +1,8 @@
 # Reinforcement Learning Algorithms
 
-This repository implements some basic deep RL algorithms in PyTorch. They are developed and tested in **OpenAI Gymnasium**. PPO is further improved and tested in **Arcade Learning Environment** and **Google Research Football**. 
+![alt text](./display/homepage.png)
+
+This repository implements basic deep RL algorithms in PyTorch. They are developed and tested in **OpenAI Gymnasium**. PPO is further improved and tested in **Arcade Learning Environment** and **Google Research Football**. 
 
 ## 0. Table of Contents
 - [Environments](#1-Environments)
@@ -151,8 +153,6 @@ This is literally the "computer vision". On the left-hand side is gradient from 
 One concern is that value and policy subnetwork may compete with each other. The above figure indicates that value loss is much larger than polocy loss. However, we haven't encounter any problem under this setting, becuase policy network and value network still have their own structure.
 
 ## 4. Football
-![alt text](./display/football.png)
-
 ### 4.1 Environment
 We are using **Google Research Football** to simulate football games. It is good and fast. You can find guide about installation in its [github repository](https://github.com/google-research/football). 
 
