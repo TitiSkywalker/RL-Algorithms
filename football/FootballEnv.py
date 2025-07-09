@@ -11,12 +11,12 @@ import torchvision.transforms as T
 import matplotlib.pyplot as plt
 import gfootball.env as football_env
 import cv2
-import os 
+import os
 import sys
 
 from scipy.ndimage import gaussian_filter
 
-'''
+"""
 Available environments:
 - 11_vs_11_stochastic
 - 11_vs_11_easy_stochastic
@@ -26,13 +26,14 @@ https://github.com/google-research/football/blob/master/gfootball/doc/scenarios.
 
 Observation space & action space:
 https://github.com/google-research/football/blob/master/gfootball/doc/observation.md
-'''
+"""
+
 
 # Football environment used for PPO
 class FootballSingleEnv:
-    def __init__(self, num_frames = 4, skip_frames = 4, evaluate = False):
+    def __init__(self, num_frames=4, skip_frames=4, evaluate=False):
         self.num_frames = num_frames
-        self.skip_frames = skip_frames      # skip 1 frames
+        self.skip_frames = skip_frames  # skip 1 frames
         self.evaluate = evaluate
 
         self.parameter_stack = []
@@ -42,7 +43,9 @@ class FootballSingleEnv:
 
         self.score_board = (0, 0)
 
-        self.env = football_env.create_environment(env_name = "11_vs_11_easy_stochastic", representation = "raw", render = evaluate)
+        self.env = football_env.create_environment(
+            env_name="11_vs_11_easy_stochastic", representation="raw", render=evaluate
+        )
 
         self.record_frames = []
 
@@ -62,7 +65,7 @@ class FootballSingleEnv:
         for _ in range(self.num_frames):
             self.parameter_stack.append(parameters)
             self.minimap_stack.append(minimap)
-        
+
         self.prev_ball = init_state["ball"]
 
         return torch.stack(self.parameter_stack), torch.stack(self.minimap_stack)
@@ -71,7 +74,9 @@ class FootballSingleEnv:
         next_state, reward, terminated, info = self.env.step(action)
         next_state = next_state[0]
 
-        reward = self.calculate_reward(self.prev_ball, next_state["ball"], info, next_state["ball_owned_team"])
+        reward = self.calculate_reward(
+            self.prev_ball, next_state["ball"], info, next_state["ball_owned_team"]
+        )
 
         if self.evaluate:
             self.record_frames.append(self.env.render("rgb_array"))
@@ -79,44 +84,51 @@ class FootballSingleEnv:
         # update score board
         if info["score_reward"] == 1:
             # print(next_state["score"])
-            self.score_board = (self.score_board[0]+1, self.score_board[1])
+            self.score_board = (self.score_board[0] + 1, self.score_board[1])
             self.prev_ball = (0, 0, 0)
         elif info["score_reward"] == -1:
             # print(next_state["score"])
-            self.score_board = (self.score_board[0], self.score_board[1]+1)
+            self.score_board = (self.score_board[0], self.score_board[1] + 1)
             self.prev_ball = (0, 0, 0)
         else:
-            self.prev_ball = next_state["ball"]            
+            self.prev_ball = next_state["ball"]
 
         # skip frames and cumulate rewards
         for _ in range(self.skip_frames):
             if terminated:
                 break
-            extra_state, extra_reward, extra_terminated, extra_info = self.env.step(action)
+            extra_state, extra_reward, extra_terminated, extra_info = self.env.step(
+                action
+            )
             extra_state = extra_state[0]
 
             if self.evaluate:
                 self.record_frames.append(self.env.render("rgb_array"))
 
-            terminated = (terminated or extra_terminated)
+            terminated = terminated or extra_terminated
             info = extra_info
 
-            reward += self.calculate_reward(self.prev_ball, extra_state["ball"], extra_info, extra_state["ball_owned_team"])
+            reward += self.calculate_reward(
+                self.prev_ball,
+                extra_state["ball"],
+                extra_info,
+                extra_state["ball_owned_team"],
+            )
 
             # update score board
             if extra_info["score_reward"] == 1:
                 # print(extra_state["score"])
-                self.score_board = (self.score_board[0]+1, self.score_board[1])
+                self.score_board = (self.score_board[0] + 1, self.score_board[1])
                 self.prev_ball = (0, 0, 0)
             elif extra_info["score_reward"] == -1:
                 # print(extra_state["score"])
-                self.score_board = (self.score_board[0], self.score_board[1]+1)
+                self.score_board = (self.score_board[0], self.score_board[1] + 1)
                 self.prev_ball = (0, 0, 0)
             else:
                 self.prev_ball = extra_state["ball"]
-            
+
             next_state = extra_state
-        
+
         parameters, minimap = self.process_single_state(next_state)
 
         self.parameter_stack.pop(0)
@@ -127,8 +139,14 @@ class FootballSingleEnv:
         if terminated:
             # default behavior after gameover: reset
             self.reset()
-        
-        return torch.stack(self.parameter_stack), torch.stack(self.minimap_stack), reward, terminated, info
+
+        return (
+            torch.stack(self.parameter_stack),
+            torch.stack(self.minimap_stack),
+            reward,
+            terminated,
+            info,
+        )
 
     def get_score_board(self) -> list[tuple]:
         return self.score_board
@@ -140,40 +158,45 @@ class FootballSingleEnv:
         # potential1 = 0.5/(((x1-1)**2+y1**2)+0.05)-1/((x1+1)**2+y1**2+0.1)
         # potential1 = 10*math.exp(-100*((x1-1)**2+y1**2))-1/((x1+1)**2+y1**2+0.1)
 
-        potential1 = 50-50*math.sqrt((x1-1)**2+y1**2)
+        potential1 = 50 - 50 * math.sqrt((x1 - 1) ** 2 + y1**2)
 
         x2, y2, z2 = ball2
         # potential2 = 4/((x2-1)**2+y2**2+0.2)-4/((x2+1)**2+y2**2+0.2)
         # potential2 = 0.5/(((x1-1)**2+y1**2)+0.05)-1/((x2+1)**2+y2**2+0.1)
         # potential2 = 10*math.exp(-100*((x2-1)**2+y2**2))-1/((x2+1)**2+y2**2+0.1)
 
-        potential2 = 50-50*math.sqrt((x2-1)**2+y2**2)
+        potential2 = 50 - 50 * math.sqrt((x2 - 1) ** 2 + y2**2)
 
         reward = potential2 - potential1
 
-        if info["score_reward"] == 1:       # left team goal
+        if info["score_reward"] == 1:  # left team goal
             # print("left goal")
             reward += 100
-        elif info["score_reward"] == -1:    # right team goal
+        elif info["score_reward"] == -1:  # right team goal
             # print("right goal")
             reward -= 200
 
         if ball_owned_team == 0:
             # controlling ball is good
             reward += 0.2
-        
+
         # if control == 0:            # left team in control
         #     reward += 0.1
         # elif control == 1:          # right team in control
         #     reward -= 0.1
 
         return reward
-    
+
     # generate a binary super minimap for players and football
     def generate_minimap(self, points) -> torch.Tensor:
         width, height = 96, 72
 
-        scaled_points = np.clip(((points + np.array([1, 0.42])) / np.array([2, 0.84])) * np.array([width, height]), 0, [width - 1, height - 1]).astype(int)
+        scaled_points = np.clip(
+            ((points + np.array([1, 0.42])) / np.array([2, 0.84]))
+            * np.array([width, height]),
+            0,
+            [width - 1, height - 1],
+        ).astype(int)
 
         grid = np.zeros((height, width), dtype=int)
 
@@ -183,7 +206,7 @@ class FootballSingleEnv:
 
         smooth_grid = gaussian_filter(grid.astype(float), sigma=1)
         # increase brightness by scaling the grid values
-        brightness_factor = 7.0  
+        brightness_factor = 7.0
         smooth_grid = smooth_grid * brightness_factor
 
         # clip values to ensure they remain in the range [0, 1]
@@ -198,7 +221,9 @@ class FootballSingleEnv:
 
         return torch.Tensor(grid)
 
-    def process_single_state(self, raw_state: dict) -> tuple[torch.Tensor, torch.Tensor]:
+    def process_single_state(
+        self, raw_state: dict
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # concat parameters
         parameters = []
 
@@ -207,26 +232,38 @@ class FootballSingleEnv:
         parameters.append(torch.Tensor(raw_state["ball_direction"]))
         parameters.append(torch.Tensor(raw_state["ball_rotation"]))
         one_hot = torch.zeros(3)
-        one_hot[int(raw_state["ball_owned_team"])+1] = 1            # one-hot encoding
+        one_hot[int(raw_state["ball_owned_team"]) + 1] = 1  # one-hot encoding
         parameters.append(one_hot)
 
         # ball owned player information
         one_hot = torch.zeros(22)
         if raw_state["ball_owned_team"] == 0:
-            one_hot[int(raw_state["ball_owned_player"])] = 1        # one-hot encoding
+            one_hot[int(raw_state["ball_owned_player"])] = 1  # one-hot encoding
         elif raw_state["ball_owned_team"] == 1:
-            one_hot[int(raw_state["ball_owned_player"])+11] = 1     # one-hot encoding
+            one_hot[int(raw_state["ball_owned_player"]) + 11] = 1  # one-hot encoding
         parameters.append(one_hot)
-        if raw_state["ball_owned_team"] == -1:              
+        if raw_state["ball_owned_team"] == -1:
             parameters.append(torch.zeros(2))
             parameters.append(torch.zeros(2))
-        elif raw_state["ball_owned_team"] == 0:             
-            parameters.append(torch.Tensor(raw_state["left_team"][raw_state["ball_owned_player"]]))
-            parameters.append(torch.Tensor(raw_state["left_team_direction"][raw_state["ball_owned_player"]]))
-        else:                                               
-            parameters.append(torch.Tensor(raw_state["right_team"][raw_state["ball_owned_player"]]))
-            parameters.append(torch.Tensor(raw_state["right_team_direction"][raw_state["ball_owned_player"]]))
-        
+        elif raw_state["ball_owned_team"] == 0:
+            parameters.append(
+                torch.Tensor(raw_state["left_team"][raw_state["ball_owned_player"]])
+            )
+            parameters.append(
+                torch.Tensor(
+                    raw_state["left_team_direction"][raw_state["ball_owned_player"]]
+                )
+            )
+        else:
+            parameters.append(
+                torch.Tensor(raw_state["right_team"][raw_state["ball_owned_player"]])
+            )
+            parameters.append(
+                torch.Tensor(
+                    raw_state["right_team_direction"][raw_state["ball_owned_player"]]
+                )
+            )
+
         # left team information
         parameters.append(torch.Tensor(raw_state["left_team"]).flatten())
         parameters.append(torch.Tensor(raw_state["left_team_direction"]).flatten())
@@ -253,14 +290,16 @@ class FootballSingleEnv:
         minimap.append(self.generate_minimap(raw_state["left_team"]))
         minimap.append(self.generate_minimap(raw_state["right_team"]))
         minimap.append(self.generate_minimap([raw_state["ball"][:2]]))
-        minimap.append(self.generate_minimap([raw_state["left_team"][raw_state["active"]]]))
+        minimap.append(
+            self.generate_minimap([raw_state["left_team"][raw_state["active"]]])
+        )
         minimap = torch.stack(minimap)
 
         return parameters, minimap
-    
+
     def close(self):
         self.env.close()
-    
+
     def save_video(self):
         print("Save video as results/football.mp4")
         output_file = "../results/football.mp4"
@@ -284,5 +323,5 @@ class FootballSingleEnv:
             os.dup2(original_stdout_fd, sys.stdout.fileno())
             os.dup2(original_stderr_fd, sys.stderr.fileno())
             os.close(devnull)
-        
+
         print("Successfully saved video")

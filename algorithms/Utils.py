@@ -1,5 +1,5 @@
 """
-This file implements wrappers for environments. 
+This file implements wrappers for environments.
 - EnvSingle wraps a single Gymnasium or ALE environment.
 - EnvBatch is designed for PPO, it manages many independent environments.
 """
@@ -15,37 +15,42 @@ from collections import deque
 
 gym.register_envs(ale_py)  # unnecessary but helpful for IDEs
 
+
 #####################################################################
 #                           Environment                             #
 #####################################################################
 class EnvSingle:
-    def __init__(self, env_name, vision = False, num_frames = 4, skip_frames = 3, is_ale = False) -> None:
-        self.vision     = vision
+    def __init__(
+        self, env_name, vision=False, num_frames=4, skip_frames=3, is_ale=False
+    ) -> None:
+        self.vision = vision
         self.num_frames = num_frames
 
-        self.lives      = 0
-        self.steps      = 0
-        self.max_steps  = 1000                  # maximum rollout steps
-        self.nops       = 0
-        self.max_nops   = 128                   # terminate after too many nops
-        self.skip_frames = skip_frames          # skip some frames
+        self.lives = 0
+        self.steps = 0
+        self.max_steps = 1000  # maximum rollout steps
+        self.nops = 0
+        self.max_nops = 128  # terminate after too many nops
+        self.skip_frames = skip_frames  # skip some frames
 
         # image preprocessing
-        self.transform = T.Compose([
-            T.Grayscale(num_output_channels=1),     # convert to grayscale (1 channel)
-            T.Resize((84, 84)),                     # rescale to 84x84
-        ])
+        self.transform = T.Compose(
+            [
+                T.Grayscale(num_output_channels=1),  # convert to grayscale (1 channel)
+                T.Resize((84, 84)),  # rescale to 84x84
+            ]
+        )
 
         if is_ale:
-            self.env = gym.make("ALE/"+env_name, render_mode="rgb_array_list")
+            self.env = gym.make("ALE/" + env_name, render_mode="rgb_array_list")
         else:
             self.env = gym.make(env_name, render_mode="rgb_array_list")
-        
+
         if self.vision:
             self.frame_stack = []
         else:
             self.frame_stack = None
-    
+
     def reset(self):
         self.steps = 0
         self.nops = 0
@@ -71,10 +76,10 @@ class EnvSingle:
             # simple observation
             return init_state
 
-    def step(self, action) -> tuple[torch.Tensor, float, bool, bool, dict]:    
+    def step(self, action) -> tuple[torch.Tensor, float, bool, bool, dict]:
         next_state, reward, terminated, truncated, info = self.env.step(action)
         next_state = torch.Tensor(next_state)
-        
+
         # in case the game won't stop
         self.steps += 1
         if self.steps > self.max_steps:
@@ -111,16 +116,22 @@ class EnvSingle:
                 if terminated or truncated:
                     break
 
-                extra_state, extra_reward, extra_terminated, extra_truncated, extra_info = self.env.step(action)
+                (
+                    extra_state,
+                    extra_reward,
+                    extra_terminated,
+                    extra_truncated,
+                    extra_info,
+                ) = self.env.step(action)
 
                 if extra_reward > 0:
                     reward += 10
-                
-                terminated = (terminated or extra_terminated)
-                truncated = (truncated or extra_truncated)
+
+                terminated = terminated or extra_terminated
+                truncated = truncated or extra_truncated
 
                 if "lives" in extra_info.keys() and extra_info["lives"] < self.lives:
-                    if extra_info["lives"] < 1 :
+                    if extra_info["lives"] < 1:
                         reward -= 10
                         terminated = True
                     else:
@@ -137,16 +148,22 @@ class EnvSingle:
             self.frame_stack.append(next_state)
 
             # concatenate in channel dimension
-            return torch.cat(self.frame_stack, dim=0), reward, terminated, truncated, info
+            return (
+                torch.cat(self.frame_stack, dim=0),
+                reward,
+                terminated,
+                truncated,
+                info,
+            )
         else:
             return next_state, reward, terminated, truncated, info
-    
+
     def render(self):
         return self.env.render(), self.env.metadata["render_fps"]
 
     def action_size(self):
         return self.env.action_space.n
-    
+
     def status_size(self):
         if self.vision:
             # grayscale image with size 84x84
@@ -154,33 +171,50 @@ class EnvSingle:
         else:
             return self.env.observation_space._shape[0]
 
+
 # a batch of environments that can be used for parallel rollout
 class EnvBatch:
-    def __init__(self, env_name, num_envs, vision = False, num_frames = 4, skip_frames = 3, is_ale = False):
-        self.num_envs   = num_envs
-        self.vision     = vision
+    def __init__(
+        self,
+        env_name,
+        num_envs,
+        vision=False,
+        num_frames=4,
+        skip_frames=3,
+        is_ale=False,
+    ):
+        self.num_envs = num_envs
+        self.vision = vision
         self.num_frames = num_frames
 
-        self.steps      = [0]*self.num_envs
-        self.lives      = [0]*self.num_envs
-        self.nops       = [0]*self.num_envs
-        self.max_steps  = 1000              # maximum rollout steps
-        self.max_nops   = 128               # no-op reset mechanism
-        self.skip_frames = skip_frames      # skip frames
+        self.steps = [0] * self.num_envs
+        self.lives = [0] * self.num_envs
+        self.nops = [0] * self.num_envs
+        self.max_steps = 1000  # maximum rollout steps
+        self.max_nops = 128  # no-op reset mechanism
+        self.skip_frames = skip_frames  # skip frames
 
         # image preprocessing
-        self.transform = T.Compose([
-            T.Grayscale(num_output_channels=1),     # convert to grayscale (1 channel)
-            T.Resize((84, 84)),                     # rescale to 84x84
-        ])
+        self.transform = T.Compose(
+            [
+                T.Grayscale(num_output_channels=1),  # convert to grayscale (1 channel)
+                T.Resize((84, 84)),  # rescale to 84x84
+            ]
+        )
 
         if is_ale:
-                self.envs = [gym.make("ALE/"+env_name, render_mode="rgb_array_list") for _ in range(num_envs)]
+            self.envs = [
+                gym.make("ALE/" + env_name, render_mode="rgb_array_list")
+                for _ in range(num_envs)
+            ]
         else:
-            self.envs = [gym.make(env_name, render_mode="rgb_array_list") for _ in range(num_envs)]
-        
+            self.envs = [
+                gym.make(env_name, render_mode="rgb_array_list")
+                for _ in range(num_envs)
+            ]
+
         if self.vision:
-            self.frame_stack = [None]*self.num_envs
+            self.frame_stack = [None] * self.num_envs
         else:
             self.frame_stack = None
 
@@ -209,11 +243,13 @@ class EnvBatch:
         else:
             # simple observation
             return init_state
-        
-    def step_single(self, index, action) -> tuple[torch.Tensor, float, bool, bool, dict]:
+
+    def step_single(
+        self, index, action
+    ) -> tuple[torch.Tensor, float, bool, bool, dict]:
         next_state, reward, terminated, truncated, info = self.envs[index].step(action)
         next_state = torch.Tensor(next_state)
-        
+
         # in case the game won't stop
         self.steps[index] += 1
         if self.steps[index] > self.max_steps:
@@ -250,16 +286,25 @@ class EnvBatch:
                 if terminated or truncated:
                     break
 
-                extra_state, extra_reward, extra_terminated, extra_truncated, extra_info = self.envs[index].step(action)
+                (
+                    extra_state,
+                    extra_reward,
+                    extra_terminated,
+                    extra_truncated,
+                    extra_info,
+                ) = self.envs[index].step(action)
 
                 if extra_reward > 0:
                     reward += 10
-                
-                terminated = (terminated or extra_terminated)
-                truncated = (truncated or extra_truncated)
 
-                if "lives" in extra_info.keys() and extra_info["lives"] < self.lives[index]:
-                    if extra_info["lives"] < 1 :
+                terminated = terminated or extra_terminated
+                truncated = truncated or extra_truncated
+
+                if (
+                    "lives" in extra_info.keys()
+                    and extra_info["lives"] < self.lives[index]
+                ):
+                    if extra_info["lives"] < 1:
                         reward -= 10
                         terminated = True
                     else:
@@ -280,7 +325,13 @@ class EnvBatch:
                 self.reset_single(index)
 
             # concatenate into channel dimension
-            return torch.cat(self.frame_stack[index], dim=0), reward, terminated, truncated, info
+            return (
+                torch.cat(self.frame_stack[index], dim=0),
+                reward,
+                terminated,
+                truncated,
+                info,
+            )
         else:
             if terminated or truncated:
                 # default behavior after gameover: reset
@@ -288,48 +339,60 @@ class EnvBatch:
             return next_state, reward, terminated, truncated, info
 
     def reset(self) -> torch.Tensor:
-        states = [None]*self.num_envs
+        states = [None] * self.num_envs
         for index in range(self.num_envs):
             states[index] = self.reset_single(index)
 
         return torch.stack(states)
-    
-    def step(self, actions) -> tuple[torch.Tensor, torch.Tensor, list[bool], list[bool], list[dict]]:
-        next_state_all = [None]*self.num_envs
-        reward_all     = [None]*self.num_envs
-        terminated_all = [None]*self.num_envs
-        truncated_all  = [None]*self.num_envs
-        info_all       = [None]*self.num_envs
+
+    def step(
+        self, actions
+    ) -> tuple[torch.Tensor, torch.Tensor, list[bool], list[bool], list[dict]]:
+        next_state_all = [None] * self.num_envs
+        reward_all = [None] * self.num_envs
+        terminated_all = [None] * self.num_envs
+        truncated_all = [None] * self.num_envs
+        info_all = [None] * self.num_envs
 
         # step on each environment
         for index in range(self.num_envs):
             action = actions[index]
 
-            next_state, reward, terminated, truncated, info = self.step_single(index, action)
-            
+            next_state, reward, terminated, truncated, info = self.step_single(
+                index, action
+            )
+
             next_state_all[index] = next_state
-            reward_all[index]     = reward
+            reward_all[index] = reward
             terminated_all[index] = terminated
-            truncated_all[index]  = truncated
-            info_all[index]       = info
-        
-        return torch.stack(next_state_all), torch.tensor(reward_all), terminated_all, truncated_all, info_all
+            truncated_all[index] = truncated
+            info_all[index] = info
+
+        return (
+            torch.stack(next_state_all),
+            torch.tensor(reward_all),
+            terminated_all,
+            truncated_all,
+            info_all,
+        )
 
     def action_size(self):
         return self.envs[0].action_space.n
-    
+
     def status_size(self):
         if self.vision:
             return (self.num_frames, 84, 84)
         else:
             return self.envs[0].observation_space._shape[0]
 
+
 #####################################################################
 #                          Replay Buffer                            #
 #####################################################################
 
-# replay buffer stores all experiences 
-# store data in CPU to reduce GPU memory usage 
+
+# replay buffer stores all experiences
+# store data in CPU to reduce GPU memory usage
 class ReplayBuffer:
     def __init__(self, buffer_size, batch_size, device=None):
         self.buffer = deque(maxlen=buffer_size)
@@ -339,7 +402,7 @@ class ReplayBuffer:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = device
-    
+
     def add(self, state, action, reward, next_state, terminated):
         self.buffer.append((state, action, reward, next_state, terminated))
 
@@ -368,6 +431,6 @@ class ReplayBuffer:
         next_states = torch.stack(next_states).to(self.device)
         terminates = torch.tensor(terminates).int().to(self.device)
         return states, actions, rewards, next_states, terminates
-    
+
     def __len__(self):
         return len(self.buffer)

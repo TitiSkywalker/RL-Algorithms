@@ -19,24 +19,25 @@ from Networks import PolicyNet
 # check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 # agent with policy gradient method
 class PGAgent:
     def __init__(self, hyperparams):
-        self.env_name      = hyperparams["env_name"]
-        self.reward_bound  = hyperparams["reward_bound"]
-        self.max_reward    = hyperparams["max_reward"]
-        self.gamma         = hyperparams["gamma"]
-        self.lr            = hyperparams["lr"]
+        self.env_name = hyperparams["env_name"]
+        self.reward_bound = hyperparams["reward_bound"]
+        self.max_reward = hyperparams["max_reward"]
+        self.gamma = hyperparams["gamma"]
+        self.lr = hyperparams["lr"]
 
-        self.env=EnvSingle(self.env_name)
-        self.status_size=self.env.status_size()
-        self.action_size=self.env.action_size()
+        self.env = EnvSingle(self.env_name)
+        self.status_size = self.env.status_size()
+        self.action_size = self.env.action_size()
 
-        self.memory=[]
+        self.memory = []
 
-        self.policy_net=PolicyNet(self.status_size, self.action_size).to(device)
+        self.policy_net = PolicyNet(self.status_size, self.action_size).to(device)
 
-        self.optimizer=torch.optim.Adam(self.policy_net.parameters(), lr=self.lr)
+        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=self.lr)
 
         print(f"Agent information: ")
         print(f"- algorithm   : policy gradient")
@@ -44,13 +45,13 @@ class PGAgent:
         print(f"- environment : {self.env_name}")
         print(f"- observation : shape = {self.status_size}")
         print(f"- action      : {self.action_size} actions")
-    
+
     def action(self, state):
         policy_logits = self.policy_net(state).view(-1)
         probs = Categorical(logits=policy_logits)
         action = probs.sample()
         return action.item(), probs.log_prob(action)
-    
+
     def add(self, reward, log_prob):
         self.memory.append((reward, log_prob))
 
@@ -70,28 +71,28 @@ class PGAgent:
         self.optimizer.step()
 
         # clear memory after each episode
-        self.memory=[]
-    
+        self.memory = []
+
     def train(self, num_train_episodes=100):
         print("Start training")
-        reward_history=[]
+        reward_history = []
 
         for episode in range(num_train_episodes):
-            state=torch.Tensor(self.env.reset()).to(device)
-            terminated=False
-            truncated=False
-            total_reward=0
-  
+            state = torch.Tensor(self.env.reset()).to(device)
+            terminated = False
+            truncated = False
+            total_reward = 0
+
             # rollout in the environment
             while not terminated and not truncated:
                 action, log_prob = self.action(state)
                 next_state, reward, terminated, truncated, info = self.env.step(action)
-                next_state=torch.Tensor(next_state).to(device)
+                next_state = torch.Tensor(next_state).to(device)
 
                 self.add(reward, log_prob)
-                
-                state=next_state
-                total_reward+=reward
+
+                state = next_state
+                total_reward += reward
 
             # compute gradient and update network after each episode
             self.update()
@@ -114,11 +115,13 @@ class PGAgent:
     def reload(self):
         print("Load model")
         try:
-            state_dict=torch.load(f"../models/PG_{self.env_name}.pth", weights_only=True)
+            state_dict = torch.load(
+                f"../models/PG_{self.env_name}.pth", weights_only=True
+            )
             self.policy_net.load_state_dict(state_dict)
         except:
             print(f"Cannot load model from ../models/PG_{self.env_name}.pth")
-    
+
     def evaluate(self):
         # do a single rollout in one environment
         print(f"Evaluate agent on {self.env_name}")
@@ -148,6 +151,7 @@ class PGAgent:
         clip = ImageSequenceClip(sequence=frames, fps=fps)
         clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
+
 hyperparams = {
     "env_name": "CartPole-v1",
     "reward_bound": 600,
@@ -157,7 +161,7 @@ hyperparams = {
 }
 
 if __name__ == "__main__":
-    agent=PGAgent(hyperparams)
+    agent = PGAgent(hyperparams)
     agent.train(500)
     agent.save()
     agent.reload()

@@ -25,25 +25,26 @@ from Networks import PolicyNet, ValueNet
 # check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 # agent with actor-critic method
 class ACAgent:
     def __init__(self, hyperparams):
-        self.env_name     = hyperparams["env_name"]
+        self.env_name = hyperparams["env_name"]
         self.reward_bound = hyperparams["reward_bound"]
-        self.max_reward   = hyperparams["max_reward"]
-        self.gamma        = hyperparams["gamma"]
-        self.lr_p         = hyperparams["policy_lr"]
-        self.lr_v         = hyperparams["value_lr"]
+        self.max_reward = hyperparams["max_reward"]
+        self.gamma = hyperparams["gamma"]
+        self.lr_p = hyperparams["policy_lr"]
+        self.lr_v = hyperparams["value_lr"]
 
-        self.env=EnvSingle(self.env_name)
-        self.status_size=self.env.status_size()
-        self.action_size=self.env.action_size()
+        self.env = EnvSingle(self.env_name)
+        self.status_size = self.env.status_size()
+        self.action_size = self.env.action_size()
 
-        self.policy_net=PolicyNet(self.status_size, self.action_size).to(device)
-        self.value_net=ValueNet(self.status_size).to(device)
+        self.policy_net = PolicyNet(self.status_size, self.action_size).to(device)
+        self.value_net = ValueNet(self.status_size).to(device)
 
-        self.optimizer_p=torch.optim.Adam(self.policy_net.parameters(), lr=self.lr_p)
-        self.optimizer_v=torch.optim.Adam(self.value_net.parameters(), lr=self.lr_v)
+        self.optimizer_p = torch.optim.Adam(self.policy_net.parameters(), lr=self.lr_p)
+        self.optimizer_v = torch.optim.Adam(self.value_net.parameters(), lr=self.lr_v)
 
         print(f"Agent information: ")
         print(f"- algorithm   : actor-critic")
@@ -51,27 +52,27 @@ class ACAgent:
         print(f"- environment : {self.env_name}")
         print(f"- observation : shape = {self.status_size}")
         print(f"- action      : {self.action_size} actions")
-    
+
     def action(self, state):
         policy_logits = self.policy_net(state).view(-1)
         probs = Categorical(logits=policy_logits)
         action = probs.sample()
         return action.item(), probs.log_prob(action)
-    
+
     def update(self, state, log_prob, reward, next_state, terminated):
         state = state.to(device)
         next_state = next_state.to(device)
 
         next_value = self.value_net(next_state)
         value = self.value_net(state)
-        target_value = (reward+self.gamma*next_value*(1-terminated))
+        target_value = reward + self.gamma * next_value * (1 - terminated)
 
         # compute value gradient
         MSE_func = nn.MSELoss()
         loss_v = MSE_func(value, target_value)
 
         # compute policy gradient with TD-error
-        delta = (target_value-value).detach()
+        delta = (target_value - value).detach()
         loss_p = -log_prob * delta
 
         total_loss = loss_p + loss_v
@@ -80,29 +81,29 @@ class ACAgent:
         self.optimizer_v.zero_grad()
 
         total_loss.backward()
-        
+
         self.optimizer_p.step()
         self.optimizer_v.step()
-    
+
     def train(self, num_train_episodes=100):
         print("Start training")
-        reward_history=[]
+        reward_history = []
 
         for episode in range(num_train_episodes):
-            state=torch.Tensor(self.env.reset()).to(device)
-            terminated=False
-            truncated=False
-            total_reward=0
-            
+            state = torch.Tensor(self.env.reset()).to(device)
+            terminated = False
+            truncated = False
+            total_reward = 0
+
             while not terminated and not truncated:
-                action, log_prob=self.action(state)
+                action, log_prob = self.action(state)
                 next_state, reward, terminated, truncated, info = self.env.step(action)
-                next_state=torch.Tensor(next_state).to(device)
+                next_state = torch.Tensor(next_state).to(device)
 
                 self.update(state, log_prob, reward, next_state, terminated)
-                
-                state=next_state
-                total_reward+=reward
+
+                state = next_state
+                total_reward += reward
 
             reward_history.append(total_reward)
             print(f"Training episode {episode}, reward = {total_reward}")
@@ -117,20 +118,25 @@ class ACAgent:
 
     def save(self):
         print("Save model")
-        torch.save({
-            "policy_net": self.policy_net.state_dict(),
-            "value_net": self.value_net.state_dict(),
-        }, f"../models/AC_{self.env_name}.pth")
+        torch.save(
+            {
+                "policy_net": self.policy_net.state_dict(),
+                "value_net": self.value_net.state_dict(),
+            },
+            f"../models/AC_{self.env_name}.pth",
+        )
 
     def reload(self):
         print("Load model")
         try:
-            state_dict=torch.load(f"../models/AC_{self.env_name}.pth", weights_only=True)
+            state_dict = torch.load(
+                f"../models/AC_{self.env_name}.pth", weights_only=True
+            )
             self.policy_net.load_state_dict(state_dict["policy_net"])
             self.value_net.load_state_dict(state_dict["value_net"])
         except:
             print(f"Cannot load model from ../models/AC_{self.env_name}.pth")
-    
+
     def evaluate(self):
         # do a single rollout in one environment
         print(f"Evaluate agent on {self.env_name}")
@@ -159,7 +165,8 @@ class ACAgent:
         clip = ImageSequenceClip(sequence=frames, fps=fps)
         clip.write_videofile("../results/evaluate.mp4", codec="libx264")
 
-hyperparams={
+
+hyperparams = {
     "env_name": "CartPole-v1",
     "reward_bound": 600,
     "max_reward": 500,
@@ -169,7 +176,7 @@ hyperparams={
 }
 
 if __name__ == "__main__":
-    agent=ACAgent(hyperparams)
+    agent = ACAgent(hyperparams)
     agent.train(500)
     agent.save()
     agent.reload()

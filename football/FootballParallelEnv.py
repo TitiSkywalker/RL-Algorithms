@@ -7,6 +7,7 @@ import torch.multiprocessing as mp
 
 from FootballEnv import FootballSingleEnv
 
+
 def worker(frames, skip_frames, pipe):
     """Worker process that manages an environment instance."""
     env = FootballSingleEnv(frames, skip_frames)
@@ -30,8 +31,9 @@ def worker(frames, skip_frames, pipe):
         pipe.close()
         env.close()
 
+
 class FootballParallelEnv:
-    def __init__(self, num_envs, frames = 4, skip_frames = 4):
+    def __init__(self, num_envs, frames=4, skip_frames=4):
         self.num_envs = num_envs
 
         self.workers = []
@@ -44,12 +46,20 @@ class FootballParallelEnv:
             self.workers.append(process)
             self.pipes.append(parent_conn)
 
-    def step(self, actions) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[bool], dict]:
+    def step(
+        self, actions
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[bool], dict]:
         for pipe, action in zip(self.pipes, actions):
             pipe.send(("step", action))
         results = [pipe.recv() for pipe in self.pipes]
         parameters, minimaps, rewards, terminated, info = zip(*results)
-        return torch.stack(parameters), torch.stack(minimaps), torch.Tensor(rewards), terminated, info
+        return (
+            torch.stack(parameters),
+            torch.stack(minimaps),
+            torch.Tensor(rewards),
+            terminated,
+            info,
+        )
 
     def reset(self) -> tuple[torch.Tensor, torch.Tensor]:
         for pipe in self.pipes:
@@ -68,7 +78,7 @@ class FootballParallelEnv:
             pipe.send(("score_board", None))
         results = [pipe.recv() for pipe in self.pipes]
 
-        return torch.Tensor(results).sum(dim = 0).to(int).tolist()
+        return torch.Tensor(results).sum(dim=0).to(int).tolist()
 
     def close(self):
         for pipe in self.pipes:
